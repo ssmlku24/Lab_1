@@ -6,6 +6,7 @@ namespace JordanExceptionsLab
 {
     class Program
     {
+        // Зберігає всі виведені на екран рядки для подальшого запису у файл
         static List<string> currentProtocol = new List<string>();
 
         static void Main(string[] args)
@@ -46,6 +47,7 @@ namespace JordanExceptionsLab
             }
         }
 
+        // Метод для дублювання інформації: виводить текст у консоль та додає його до протоколу
         static void Log(string message, bool writeLine = true)
         {
             if (writeLine)
@@ -61,6 +63,7 @@ namespace JordanExceptionsLab
             }
         }
 
+        // Форматує та виводить двовимірну матрицю з вирівнюванням
         static void LogMatrix(double[,] matrix)
         {
             int rows = matrix.GetLength(0);
@@ -89,6 +92,7 @@ namespace JordanExceptionsLab
             }
         }
 
+        // Демонструє процес знаходження оберненої матриці
         static void FindInverseMatrixMenu()
         {
             Console.Write("Введіть розмірність квадратної матриці n: ");
@@ -113,6 +117,7 @@ namespace JordanExceptionsLab
             PromptSaveToFile();
         }
 
+        // Демонструє процес обчислення рангу матриці довільного розміру
         static void CalculateRankMenu()
         {
             Console.Write("Введіть кількість рядків n: ");
@@ -133,6 +138,7 @@ namespace JordanExceptionsLab
             PromptSaveToFile();
         }
 
+        // Демонструє розв'язання Системи Лінійних Алгебраїчних Рівнянь (СЛАР)
         static void SolveSLAEMenu()
         {
             Console.Write("Введіть розмірність системи n: ");
@@ -173,6 +179,7 @@ namespace JordanExceptionsLab
             {
                 string equation = $"X[{i + 1}] = ";
                 double sum = 0;
+                // Обчислення коренів шляхом множення оберненої матриці на вектор вільних членів
                 for (int j = 0; j < n; j++)
                 {
                     double valB = B[j];
@@ -190,7 +197,7 @@ namespace JordanExceptionsLab
             }
             PromptSaveToFile();
         }
-
+        // Виконує один крок ЗЖВ
         static double[,] DoJordanEliminationStep(double[,] matrix, int r, int s)
         {
             int rows = matrix.GetLength(0);
@@ -203,20 +210,21 @@ namespace JordanExceptionsLab
                 for (int j = 0; j < cols; j++)
                 {
                     if (i == r && j == s)
-                        next[i, j] = 1.0;
+                        next[i, j] = 1.0; // Заміна розв'язувального елемента
                     else if (i == r)
-                        next[i, j] = -matrix[r, j];
+                        next[i, j] = -matrix[r, j]; // Рядок розв'язувального елемента (зміна знаку)
                     else if (j == s)
-                        next[i, j] = matrix[i, s];
+                        next[i, j] = matrix[i, s]; // Стовпець розв'язувального елемента (без змін)м
                     else
                         next[i, j] = matrix[i, j] * pivot - matrix[i, s] * matrix[r, j];
 
-                    next[i, j] /= pivot;
+                    next[i, j] /= pivot; // Ділення всього на розв'язувальний елемент
                 }
             }
             return next;
         }
 
+        // Алгоритм обчислення оберненої матриці методом ЗЖВ
         static double[,] GetInverseMatrix(double[,] A)
         {
             int n = A.GetLength(0);
@@ -234,6 +242,7 @@ namespace JordanExceptionsLab
             {
                 int k = diagonals.Dequeue();
 
+                // Якщо елемент на діагоналі дорівнює нулю, переносимо його в кінець черги
                 if (Math.Abs(currentA[k, k]) < 1e-9)
                 {
                     diagonals.Enqueue(k);
@@ -253,6 +262,7 @@ namespace JordanExceptionsLab
                 step++;
             }
 
+            // Якщо залишилися необроблені діагональні елементи, матриця вироджена
             if (diagonals.Count > 0)
             {
                 Log("Матриця вироджена (визначник = 0), оберненої не існує.");
@@ -262,19 +272,21 @@ namespace JordanExceptionsLab
             return currentA;
         }
 
+        // Алгоритм обчислення рангу матриці
         static int CalculateRank(double[,] A)
         {
             int n = A.GetLength(0);
             int m = A.GetLength(1);
             double[,] currentA = (double[,])A.Clone();
 
-            int r = 0;
+            int r = 0; // Змінна для накопичення рангу
             int limit = Math.Min(n, m);
 
             Log("Протокол обчислення рангу:");
 
             for (int i = 0; i < limit; i++)
             {
+                // Виконуємо крок алгоритму лише для ненульових елементів
                 if (Math.Abs(currentA[i, i]) > 1e-9)
                 {
                     Log($"Крок #{r + 1}");
@@ -291,9 +303,10 @@ namespace JordanExceptionsLab
                     Log($"Елемент А[{i + 1}, {i + 1}] дорівнює 0. Пропускаємо цей крок.");
                 }
             }
-            return r;
+            return r; // Повертаємо знайдену кількість незалежних рядків/стовпців
         }
 
+        // Безпечне зчитування матриці з перевіркою коректності вводу
         static double[,] ReadMatrix(int rows, int cols)
         {
             double[,] matrix = new double[rows, cols];
@@ -327,6 +340,7 @@ namespace JordanExceptionsLab
             return matrix;
         }
 
+        // Безпечне зчитування вектора (підтримує введення в рядок або в стовпчик)
         static double[] ReadVector(int n)
         {
             double[] vector = new double[n];
