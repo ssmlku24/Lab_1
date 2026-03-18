@@ -18,10 +18,12 @@ namespace JordanExceptionsLab
             while (running)
             {
                 currentProtocol.Clear();
-                Console.WriteLine("\n=== ЛАБОРАТОРНА РОБОТА: МЖВ ===");
+                Console.WriteLine("\n=== ЛАБОРАТОРНА РОБОТА:ЗЖВ та МЖВ ===");
+                Console.WriteLine("--- ЧАСТИНА А ---");
                 Console.WriteLine("1. Пошук оберненої матриці");
                 Console.WriteLine("2. Обчислення рангу матриці");
                 Console.WriteLine("3. Розв'язання СЛАР");
+                Console.WriteLine("--- ЧАСТИНА Б ---");
                 Console.WriteLine("4. Розв'язання ЗЛП (Симплекс-метод)");
                 Console.WriteLine("0. Вихід");
                 Console.Write("Оберіть дію: ");
@@ -115,8 +117,80 @@ namespace JordanExceptionsLab
                 Console.WriteLine($"\nФайл успішно збережено під назвою: {filename}");
             }
         }
+        // Безпечне зчитування матриці з перевіркою коректності вводу
+        static double[,] ReadMatrix(int rows, int cols)
+        {
+            double[,] matrix = new double[rows, cols];
+            for (int i = 0; i < rows; i++)
+            {
+                while (true)
+                {
+                    Console.Write($"Рядок {i + 1}: ");
+                    string[] inputs = Console.ReadLine().Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (inputs.Length == cols)
+                    {
+                        bool validRow = true;
+                        for (int j = 0; j < cols; j++)
+                        {
+                            if (!double.TryParse(inputs[j].Replace('.', ','), out matrix[i, j]))
+                            {
+                                Console.WriteLine($"Помилка: '{inputs[j]}' не є числом.");
+                                validRow = false;
+                                break;
+                            }
+                        }
+                        if (validRow) break;
+                    }
+                    else Console.WriteLine($"Помилка: потрібно рівно {cols} чисел.");
+                }
+            }
+            return matrix;
+        }
 
-        // Алгоритми МЖВ
+        // Безпечне зчитування вектора (підтримує введення в рядок або в стовпчик)
+        static double[] ReadVector(int n)
+        {
+            double[] vector = new double[n];
+            while (true)
+            {
+                string[] inputs = Console.ReadLine().Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (inputs.Length == n)
+                {
+                    bool valid = true;
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (!double.TryParse(inputs[i].Replace('.', ','), out vector[i]))
+                        {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    if (valid) return vector;
+                }
+                else if (inputs.Length == 1 && double.TryParse(inputs[0].Replace('.', ','), out vector[0]))
+                {
+                    bool validRest = true;
+                    for (int i = 1; i < n; i++)
+                    {
+                        string nextInput = Console.ReadLine().Trim();
+                        if (!double.TryParse(nextInput.Replace('.', ','), out vector[i]))
+                        {
+                            validRest = false;
+                            break;
+                        }
+                    }
+                    if (validRest) return vector;
+                    else Console.WriteLine("Помилка під час введення. Почніть введення вектора з початку.");
+                }
+                else
+                {
+                    Console.WriteLine($"Помилка: потрібно ввести рівно {n} чисел (через пробіл). Спробуйте ще раз.");
+                }
+            }
+        }
+
+        // ЧАСТИНА А: Базові операції ЗЖВ (Обернена матриця, Ранг, СЛАР)
 
         // Виконує один крок ЗЖВ
         static double[,] DoJordanEliminationStep(double[,] matrix, int r, int s)
@@ -140,7 +214,177 @@ namespace JordanExceptionsLab
             }
             return next;
         }
+        // Демонструє процес знаходження оберненої матриці
+        static void FindInverseMatrixMenu()
+        {
+            Console.Write("Введіть розмірність квадратної матриці n: ");
+            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0)
+            {
+                Console.WriteLine("Некоректна розмірність.");
+                return;
+            }
 
+            double[,] A = ReadMatrix(n, n);
+            Log("\nЗнаходження оберненої матриці:");
+            Log("Вхідна матриця:");
+            LogMatrix(A);
+
+            double[,] inverse = GetInverseMatrix(A);
+            if (inverse != null)
+            {
+                Log("Обернена матриця:");
+                LogMatrix(inverse);
+            }
+            PromptSaveToFile();
+        }
+        // Алгоритм обчислення оберненої матриці методом ЗЖВ
+        static double[,] GetInverseMatrix(double[,] A)
+        {
+            int n = A.GetLength(0);
+            double[,] currentA = (double[,])A.Clone();
+            Queue<int> diagonals = new Queue<int>();
+            for (int i = 0; i < n; i++) diagonals.Enqueue(i);
+            int step = 1;
+            int attempts = 0;
+
+            Log("Протокол обчислення ЗЖВ:");
+
+            while (diagonals.Count > 0 && attempts < diagonals.Count)
+            {
+                int k = diagonals.Dequeue();
+
+                // Якщо елемент на діагоналі дорівнює нулю, переносимо його в кінець черги
+                if (Math.Abs(currentA[k, k]) < 1e-9)
+                {
+                    diagonals.Enqueue(k);
+                    attempts++;
+                    continue;
+                }
+                attempts = 0;
+                Log($"Крок #{step}\nРозв'язувальний елемент: А[{k + 1}, {k + 1}] = {currentA[k, k]:F2}");
+                currentA = DoJordanEliminationStep(currentA, k, k);
+                Log("Матриця після виконання ЗЖВ:");
+                LogMatrix(currentA);
+                step++;
+            }
+            // Якщо залишилися необроблені діагональні елементи, матриця вироджена
+            if (diagonals.Count > 0)
+            {
+                Log("Матриця вироджена (визначник = 0), оберненої не існує.");
+                return null;
+            }
+
+            return currentA;
+        }
+        // Демонструє процес обчислення рангу матриці довільного розміру
+        static void CalculateRankMenu()
+        {
+            Console.Write("Введіть кількість рядків n: ");
+            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
+            Console.Write("Введіть кількість стовпців m: ");
+            if (!int.TryParse(Console.ReadLine(), out int m) || m <= 0) return;
+
+            double[,] A = ReadMatrix(n, m);
+            Log("\nОбчислення рангу матриці:");
+            Log("Вхідна матриця:");
+            LogMatrix(A);
+
+            int rank = CalculateRank(A);
+            Log($"\nОстаточний ранг матриці: r = {rank}");
+            PromptSaveToFile();
+        }
+        // Алгоритм обчислення рангу матриці
+        static int CalculateRank(double[,] A)
+        {
+            int n = A.GetLength(0);
+            int m = A.GetLength(1);
+            double[,] currentA = (double[,])A.Clone();
+            int r = 0;
+            int limit = Math.Min(n, m);
+
+            Log("Протокол обчислення рангу:");
+
+            for (int i = 0; i < limit; i++)
+            {
+                // Виконуємо крок алгоритму лише для ненульових елементів
+                if (Math.Abs(currentA[i, i]) > 1e-9)
+                {
+                    Log($"Крок #{r + 1}");
+                    Log($"Розв'язувальний елемент: А[{i + 1}, {i + 1}] = {currentA[i, i]:F2}");
+
+                    currentA = DoJordanEliminationStep(currentA, i, i);
+                    r++;
+
+                    Log("Матриця після виконання ЗЖВ:");
+                    LogMatrix(currentA);
+                }
+                else
+                {
+                    Log($"Елемент А[{i + 1}, {i + 1}] дорівнює 0. Пропускаємо цей крок.");
+                }
+            }
+            return r;
+        }
+        // Демонструє розв'язання Системи Лінійних Алгебраїчних Рівнянь (СЛАР)
+        static void SolveSLAEMenu()
+        {
+            Console.Write("Введіть розмірність системи n: ");
+            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
+
+            Console.WriteLine("Введіть матрицю коефіцієнтів A:");
+            double[,] A = ReadMatrix(n, n);
+
+            Console.WriteLine("Введіть вектор вільних членів B (через пробіл в один рядок або по одному):");
+            double[] B = ReadVector(n);
+
+            Log("\nЗгенерований протокол обчислення:");
+            Log("Знаходження розвʼязків СЛАР 1-м методом (за допомогою оберненої матриці):");
+            Log("Знаходження оберненої матриці:");
+            Log("Вхідна матриця:");
+            LogMatrix(A);
+
+            double[,] invA = GetInverseMatrix(A);
+
+            if (invA == null)
+            {
+                Log("Систему неможливо розв'язати цим методом (матриця вироджена).");
+                PromptSaveToFile();
+                return;
+            }
+
+            Log("Обернена матриця:");
+            LogMatrix(invA);
+
+            Log("Вхідний вектор В:");
+            for (int i = 0; i < n; i++)
+                Log($"{B[i]}");
+            Log("");
+
+            Log("Обчислення розвʼязків:");
+            double[] X = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                string equation = $"X[{i + 1}] = ";
+                double sum = 0;
+                // Обчислення коренів шляхом множення оберненої матриці на вектор вільних членів
+                for (int j = 0; j < n; j++)
+                {
+                    double valB = B[j];
+                    double valInv = invA[i, j];
+                    sum += valB * valInv;
+
+                    string formattedInv = valInv < 0 ? $"({valInv:F2})" : $"{valInv:F2}";
+                    equation += $"{valB:F2} * {formattedInv}";
+
+                    if (j < n - 1) equation += " + ";
+                }
+                X[i] = sum;
+                equation += $" = {X[i]:F2}";
+                Log(equation);
+            }
+            PromptSaveToFile();
+        }
+        // ЧАСТИНА Б: Симплекс-метод (Задача Лінійного Програмування)
         // Спеціальний крок МЖВ для Симплекс-методу 
         static double[,] DoSimplexMJEStep(double[,] matrix, int r, int s)
         {
@@ -163,7 +407,31 @@ namespace JordanExceptionsLab
             }
             return next;
         }
-
+        // Допоміжний метод для заміни заголовків (згідно правила: стовпець отримує мінус)
+        static void SwapLPPHeaders(ref string rowHeader, ref string colHeader)
+        {
+            string oldCol = colHeader;
+            colHeader = "-" + rowHeader;
+            rowHeader = oldCol.Replace("-", "");
+        }
+        static void PrintSolutionX(double[,] table, string[] rowHeaders, int n)
+        {
+            double[] X = new double[n];
+            for (int j = 0; j < n; j++)
+            {
+                string varName = $"x{j + 1}";
+                X[j] = 0; // За замовчуванням 0 (якщо змінна неопорна)
+                for (int i = 0; i < rowHeaders.Length - 1; i++)
+                {
+                    if (rowHeaders[i] == varName)
+                    {
+                        X[j] = table[i, table.GetLength(1) - 1];
+                        break;
+                    }
+                }
+            }
+            Log("X = (" + string.Join("; ", X.Select(v => $"{v:F2}")) + ")");
+        }
         static void SolveLPPMenu()
         {
             Console.Write("Введіть кількість змінних (n): ");
@@ -341,241 +609,6 @@ namespace JordanExceptionsLab
             Log($"{(isMax ? "Max" : "Min")} (Z) = {finalZ:F2}");
 
             PromptSaveToFile();
-        }
-
-        // Допоміжний метод для заміни заголовків (згідно правила: стовпець отримує мінус)
-        static void SwapLPPHeaders(ref string rowHeader, ref string colHeader)
-        {
-            string oldCol = colHeader;
-            colHeader = "-" + rowHeader;
-            rowHeader = oldCol.Replace("-", "");
-        }
-
-        static void PrintSolutionX(double[,] table, string[] rowHeaders, int n)
-        {
-            double[] X = new double[n];
-            for (int j = 0; j < n; j++)
-            {
-                string varName = $"x{j + 1}";
-                X[j] = 0; // За замовчуванням 0 (якщо змінна неопорна)
-                for (int i = 0; i < rowHeaders.Length - 1; i++)
-                {
-                    if (rowHeaders[i] == varName)
-                    {
-                        X[j] = table[i, table.GetLength(1) - 1];
-                        break;
-                    }
-                }
-            }
-            Log("X = (" + string.Join("; ", X.Select(v => $"{v:F2}")) + ")");
-        }
-
-        // Part A
-        // Демонструє процес знаходження оберненої матриці
-        static void FindInverseMatrixMenu()
-        {
-            Console.Write("Введіть розмірність квадратної матриці n: ");
-            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
-
-            double[,] A = ReadMatrix(n, n);
-            Log("\nЗнаходження оберненої матриці:");
-            Log("Вхідна матриця:");
-            LogMatrix(A);
-
-            double[,] inverse = GetInverseMatrix(A);
-            if (inverse != null)
-            {
-                Log("Обернена матриця:");
-                LogMatrix(inverse);
-            }
-            PromptSaveToFile();
-        }
-
-        // Демонструє процес обчислення рангу матриці довільного розміру
-        static void CalculateRankMenu()
-        {
-            Console.Write("Введіть кількість рядків n: ");
-            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
-            Console.Write("Введіть кількість стовпців m: ");
-            if (!int.TryParse(Console.ReadLine(), out int m) || m <= 0) return;
-
-            double[,] A = ReadMatrix(n, m);
-            Log("\nОбчислення рангу матриці:");
-            Log("Вхідна матриця:");
-            LogMatrix(A);
-
-            int rank = CalculateRank(A);
-            Log($"\nОстаточний ранг матриці: r = {rank}");
-            PromptSaveToFile();
-        }
-
-        // Демонструє розв'язання Системи Лінійних Алгебраїчних Рівнянь (СЛАР)
-        static void SolveSLAEMenu()
-        {
-            Console.Write("Введіть розмірність системи n: ");
-            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
-
-            Console.WriteLine("Введіть матрицю коефіцієнтів A:");
-            double[,] A = ReadMatrix(n, n);
-
-            Console.WriteLine("Введіть вектор вільних членів B:");
-            double[] B = ReadVector(n);
-
-            Log("\nЗнаходження розвʼязків СЛАР (через обернену матрицю):");
-            double[,] invA = GetInverseMatrix(A);
-
-            if (invA == null)
-            {
-                Log("Систему неможливо розв'язати цим методом (матриця вироджена).");
-                PromptSaveToFile();
-                return;
-            }
-
-            Log("Вхідний вектор В:");
-            for (int i = 0; i < n; i++) Log($"{B[i]}");
-            Log("");
-
-            Log("Обчислення розвʼязків:");
-            double[] X = new double[n];
-            for (int i = 0; i < n; i++)
-            {
-                string equation = $"X[{i + 1}] = ";
-                double sum = 0;
-                for (int j = 0; j < n; j++)
-                {
-                    double valB = B[j], valInv = invA[i, j];
-                    sum += valB * valInv;
-                    equation += $"{valB:F2} * {(valInv < 0 ? $"({valInv:F2})" : $"{valInv:F2}")}";
-                    if (j < n - 1) equation += " + ";
-                }
-                X[i] = sum;
-                equation += $" = {X[i]:F2}";
-                Log(equation);
-            }
-            PromptSaveToFile();
-        }
-
-        // Алгоритм обчислення оберненої матриці методом ЗЖВ
-        static double[,] GetInverseMatrix(double[,] A)
-        {
-            int n = A.GetLength(0);
-            double[,] currentA = (double[,])A.Clone();
-            Queue<int> diagonals = new Queue<int>();
-            for (int i = 0; i < n; i++) diagonals.Enqueue(i);
-            int step = 1, attempts = 0;
-
-            while (diagonals.Count > 0 && attempts < diagonals.Count)
-            {
-                int k = diagonals.Dequeue();
-                if (Math.Abs(currentA[k, k]) < 1e-9)
-                {
-                    diagonals.Enqueue(k);
-                    attempts++;
-                    continue;
-                }
-                attempts = 0;
-                Log($"Крок #{step}\nРозв'язувальний елемент: А[{k + 1}, {k + 1}] = {currentA[k, k]:F2}");
-                currentA = DoJordanEliminationStep(currentA, k, k);
-                Log("Матриця після виконання МЖВ:");
-                LogMatrix(currentA);
-                step++;
-            }
-            if (diagonals.Count > 0) return null;
-            return currentA;
-        }
-
-        // Алгоритм обчислення рангу матриці
-        static int CalculateRank(double[,] A)
-        {
-            int n = A.GetLength(0), m = A.GetLength(1);
-            double[,] currentA = (double[,])A.Clone();
-            int r = 0, limit = Math.Min(n, m);
-
-            for (int i = 0; i < limit; i++)
-            {
-                if (Math.Abs(currentA[i, i]) > 1e-9)
-                {
-                    Log($"Крок #{r + 1}\nРозв'язувальний елемент: А[{i + 1}, {i + 1}] = {currentA[i, i]:F2}");
-                    currentA = DoJordanEliminationStep(currentA, i, i);
-                    r++;
-                    Log("Матриця після виконання МЖВ:");
-                    LogMatrix(currentA);
-                }
-            }
-            return r;
-        }
-
-        // Безпечне зчитування матриці з перевіркою коректності вводу
-        static double[,] ReadMatrix(int rows, int cols)
-        {
-            double[,] matrix = new double[rows, cols];
-            for (int i = 0; i < rows; i++)
-            {
-                while (true)
-                {
-                    Console.Write($"Рядок {i + 1}: ");
-                    string[] inputs = Console.ReadLine().Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (inputs.Length == cols)
-                    {
-                        bool validRow = true;
-                        for (int j = 0; j < cols; j++)
-                        {
-                            if (!double.TryParse(inputs[j].Replace('.', ','), out matrix[i, j]))
-                            {
-                                Console.WriteLine($"Помилка: '{inputs[j]}' не є числом.");
-                                validRow = false;
-                                break;
-                            }
-                        }
-                        if (validRow) break;
-                    }
-                    else Console.WriteLine($"Помилка: потрібно рівно {cols} чисел.");
-                }
-            }
-            return matrix;
-        }
-
-        // Безпечне зчитування вектора (підтримує введення в рядок або в стовпчик)
-        static double[] ReadVector(int n)
-        {
-            double[] vector = new double[n];
-            while (true)
-            {
-                string[] inputs = Console.ReadLine().Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (inputs.Length == n)
-                {
-                    bool valid = true;
-                    for (int i = 0; i < n; i++)
-                    {
-                        if (!double.TryParse(inputs[i].Replace('.', ','), out vector[i]))
-                        {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    if (valid) return vector;
-                }
-                else if (inputs.Length == 1 && double.TryParse(inputs[0].Replace('.', ','), out vector[0]))
-                {
-                    bool validRest = true;
-                    for (int i = 1; i < n; i++)
-                    {
-                        string nextInput = Console.ReadLine().Trim();
-                        if (!double.TryParse(nextInput.Replace('.', ','), out vector[i]))
-                        {
-                            validRest = false;
-                            break;
-                        }
-                    }
-                    if (validRest) return vector;
-                    else Console.WriteLine("Помилка під час введення. Почніть введення вектора з початку.");
-                }
-                else
-                {
-                    Console.WriteLine($"Помилка: потрібно ввести рівно {n} чисел (через пробіл). Спробуйте ще раз.");
-                }
-            }
         }
     }
 }
