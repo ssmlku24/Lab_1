@@ -7,7 +7,6 @@ namespace JordanExceptionsLab
 {
     class Program
     {
-        // Зберігає всі виведені на екран рядки для подальшого запису у файл
         static List<string> currentProtocol = new List<string>();
 
         static void Main(string[] args)
@@ -18,13 +17,15 @@ namespace JordanExceptionsLab
             while (running)
             {
                 currentProtocol.Clear();
-                Console.WriteLine("\n=== ЛАБОРАТОРНА РОБОТА:ЗЖВ та МЖВ ===");
+                Console.WriteLine("\n=== ЛАБОРАТОРНА РОБОТА: ЗЖВ та МЖВ ===");
                 Console.WriteLine("--- ЧАСТИНА А ---");
                 Console.WriteLine("1. Пошук оберненої матриці");
                 Console.WriteLine("2. Обчислення рангу матриці");
                 Console.WriteLine("3. Розв'язання СЛАР");
                 Console.WriteLine("--- ЧАСТИНА Б ---");
-                Console.WriteLine("4. Розв'язання ЗЛП (Симплекс-метод)");
+                Console.WriteLine("4. Розв'язання ЗЛП (стандартна система обмежень: <= або >=)");
+                Console.WriteLine("--- ЧАСТИНА С ---");
+                Console.WriteLine("5. Розв'язання ЗЛП (змішана система обмежень: наявність =)");
                 Console.WriteLine("0. Вихід");
                 Console.Write("Оберіть дію: ");
 
@@ -42,7 +43,10 @@ namespace JordanExceptionsLab
                         SolveSLAEMenu();
                         break;
                     case "4":
-                        SolveLPPMenu();
+                        SolveLPPMenu(isMixed: false);
+                        break;
+                    case "5":
+                        SolveLPPMenu(isMixed: true);
                         break;
                     case "0":
                         running = false;
@@ -54,7 +58,8 @@ namespace JordanExceptionsLab
             }
         }
 
-        // Базові функції логування та виведення
+        // Базові функції логування та введення
+
         static void Log(string message, bool writeLine = true)
         {
             if (writeLine)
@@ -69,6 +74,7 @@ namespace JordanExceptionsLab
                 currentProtocol[currentProtocol.Count - 1] += message;
             }
         }
+
         static void LogMatrix(double[,] matrix)
         {
             int rows = matrix.GetLength(0);
@@ -96,6 +102,7 @@ namespace JordanExceptionsLab
 
             for (int i = 0; i < rows; i++)
             {
+                // Форматуємо підпис рядка (тепер Z буде відображатись коректно)
                 string rowStr = $"{rowHeaders[i],4} =";
                 for (int j = 0; j < cols; j++)
                 {
@@ -146,7 +153,6 @@ namespace JordanExceptionsLab
             }
             return matrix;
         }
-
         // Безпечне зчитування вектора (підтримує введення в рядок або в стовпчик)
         static double[] ReadVector(int n)
         {
@@ -168,21 +174,6 @@ namespace JordanExceptionsLab
                     }
                     if (valid) return vector;
                 }
-                else if (inputs.Length == 1 && double.TryParse(inputs[0].Replace('.', ','), out vector[0]))
-                {
-                    bool validRest = true;
-                    for (int i = 1; i < n; i++)
-                    {
-                        string nextInput = Console.ReadLine().Trim();
-                        if (!double.TryParse(nextInput.Replace('.', ','), out vector[i]))
-                        {
-                            validRest = false;
-                            break;
-                        }
-                    }
-                    if (validRest) return vector;
-                    else Console.WriteLine("Помилка під час введення. Почніть введення вектора з початку.");
-                }
                 else
                 {
                     Console.WriteLine($"Помилка: потрібно ввести рівно {n} чисел (через пробіл). Спробуйте ще раз.");
@@ -191,7 +182,7 @@ namespace JordanExceptionsLab
         }
 
         // ЧАСТИНА А: Базові операції ЗЖВ (Обернена матриця, Ранг, СЛАР)
-
+      
         // Виконує один крок ЗЖВ
         static double[,] DoJordanEliminationStep(double[,] matrix, int r, int s)
         {
@@ -204,12 +195,12 @@ namespace JordanExceptionsLab
             {
                 for (int j = 0; j < cols; j++)
                 {
-                    if (i == r && j == s) next[i, j] = 1.0; // Заміна розв'язувального елемента
-                    else if (i == r) next[i, j] = -matrix[r, j];// Рядок розв'язувального елемента (зміна знаку)
-                    else if (j == s) next[i, j] = matrix[i, s]; // Стовпець розв'язувального елемента (без змін)м
+                    if (i == r && j == s) next[i, j] = 1.0;
+                    else if (i == r) next[i, j] = -matrix[r, j];
+                    else if (j == s) next[i, j] = matrix[i, s];
                     else next[i, j] = matrix[i, j] * pivot - matrix[i, s] * matrix[r, j];
 
-                    next[i, j] /= pivot; // Ділення всього на розв'язувальний елемент
+                    next[i, j] /= pivot;
                 }
             }
             return next;
@@ -218,11 +209,7 @@ namespace JordanExceptionsLab
         static void FindInverseMatrixMenu()
         {
             Console.Write("Введіть розмірність квадратної матриці n: ");
-            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0)
-            {
-                Console.WriteLine("Некоректна розмірність.");
-                return;
-            }
+            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
 
             double[,] A = ReadMatrix(n, n);
             Log("\nЗнаходження оберненої матриці:");
@@ -267,6 +254,7 @@ namespace JordanExceptionsLab
                 LogMatrix(currentA);
                 step++;
             }
+
             // Якщо залишилися необроблені діагональні елементи, матриця вироджена
             if (diagonals.Count > 0)
             {
@@ -276,6 +264,7 @@ namespace JordanExceptionsLab
 
             return currentA;
         }
+
         // Демонструє процес обчислення рангу матриці довільного розміру
         static void CalculateRankMenu()
         {
@@ -293,6 +282,7 @@ namespace JordanExceptionsLab
             Log($"\nОстаточний ранг матриці: r = {rank}");
             PromptSaveToFile();
         }
+
         // Алгоритм обчислення рангу матриці
         static int CalculateRank(double[,] A)
         {
@@ -311,10 +301,8 @@ namespace JordanExceptionsLab
                 {
                     Log($"Крок #{r + 1}");
                     Log($"Розв'язувальний елемент: А[{i + 1}, {i + 1}] = {currentA[i, i]:F2}");
-
                     currentA = DoJordanEliminationStep(currentA, i, i);
                     r++;
-
                     Log("Матриця після виконання ЗЖВ:");
                     LogMatrix(currentA);
                 }
@@ -325,6 +313,7 @@ namespace JordanExceptionsLab
             }
             return r;
         }
+
         // Демонструє розв'язання Системи Лінійних Алгебраїчних Рівнянь (СЛАР)
         static void SolveSLAEMenu()
         {
@@ -334,15 +323,10 @@ namespace JordanExceptionsLab
             Console.WriteLine("Введіть матрицю коефіцієнтів A:");
             double[,] A = ReadMatrix(n, n);
 
-            Console.WriteLine("Введіть вектор вільних членів B (через пробіл в один рядок або по одному):");
+            Console.WriteLine("Введіть вектор вільних членів B:");
             double[] B = ReadVector(n);
 
-            Log("\nЗгенерований протокол обчислення:");
-            Log("Знаходження розвʼязків СЛАР 1-м методом (за допомогою оберненої матриці):");
-            Log("Знаходження оберненої матриці:");
-            Log("Вхідна матриця:");
-            LogMatrix(A);
-
+            Log("\nЗнаходження розвʼязків СЛАР (за допомогою оберненої матриці):");
             double[,] invA = GetInverseMatrix(A);
 
             if (invA == null)
@@ -351,14 +335,6 @@ namespace JordanExceptionsLab
                 PromptSaveToFile();
                 return;
             }
-
-            Log("Обернена матриця:");
-            LogMatrix(invA);
-
-            Log("Вхідний вектор В:");
-            for (int i = 0; i < n; i++)
-                Log($"{B[i]}");
-            Log("");
 
             Log("Обчислення розвʼязків:");
             double[] X = new double[n];
@@ -375,7 +351,6 @@ namespace JordanExceptionsLab
 
                     string formattedInv = valInv < 0 ? $"({valInv:F2})" : $"{valInv:F2}";
                     equation += $"{valB:F2} * {formattedInv}";
-
                     if (j < n - 1) equation += " + ";
                 }
                 X[i] = sum;
@@ -384,7 +359,8 @@ namespace JordanExceptionsLab
             }
             PromptSaveToFile();
         }
-        // ЧАСТИНА Б: Симплекс-метод (Задача Лінійного Програмування)
+
+        // ЧАСТИНА Б і С: Симплекс-метод
         // Спеціальний крок МЖВ для Симплекс-методу 
         static double[,] DoSimplexMJEStep(double[,] matrix, int r, int s)
         {
@@ -398,8 +374,8 @@ namespace JordanExceptionsLab
                 for (int j = 0; j < cols; j++)
                 {
                     if (i == r && j == s) next[i, j] = 1.0;
-                    else if (i == r) next[i, j] = matrix[r, j]; // Рядок без змін
-                    else if (j == s) next[i, j] = -matrix[i, s]; // Стовпець змінює знак
+                    else if (i == r) next[i, j] = matrix[r, j];
+                    else if (j == s) next[i, j] = -matrix[i, s];
                     else next[i, j] = matrix[i, j] * pivot - matrix[i, s] * matrix[r, j];
 
                     next[i, j] /= pivot;
@@ -407,6 +383,7 @@ namespace JordanExceptionsLab
             }
             return next;
         }
+
         // Допоміжний метод для заміни заголовків (згідно правила: стовпець отримує мінус)
         static void SwapLPPHeaders(ref string rowHeader, ref string colHeader)
         {
@@ -414,28 +391,64 @@ namespace JordanExceptionsLab
             colHeader = "-" + rowHeader;
             rowHeader = oldCol.Replace("-", "");
         }
-        static void PrintSolutionX(double[,] table, string[] rowHeaders, int n)
+
+        static double[,] RemoveColumn(double[,] matrix, int colIndex)
         {
-            double[] X = new double[n];
-            for (int j = 0; j < n; j++)
+            int rows = matrix.GetLength(0);
+            int cols = matrix.GetLength(1);
+            double[,] newMatrix = new double[rows, cols - 1];
+            for (int i = 0; i < rows; i++)
+            {
+                int newCol = 0;
+                for (int j = 0; j < cols; j++)
+                {
+                    if (j == colIndex) continue;
+                    newMatrix[i, newCol] = matrix[i, j];
+                    newCol++;
+                }
+            }
+            return newMatrix;
+        }
+
+        static string[] RemoveHeader(string[] headers, int index)
+        {
+            string[] newHeaders = new string[headers.Length - 1];
+            int newIdx = 0;
+            for (int i = 0; i < headers.Length; i++)
+            {
+                if (i == index) continue;
+                newHeaders[newIdx] = headers[i];
+                newIdx++;
+            }
+            return newHeaders;
+        }
+
+        static void PrintSolutionX(double[,] table, string[] rowHeaders, int originalN)
+        {
+            double[] X = new double[originalN];
+            int colsCount = table.GetLength(1) - 1;
+            for (int j = 0; j < originalN; j++)
             {
                 string varName = $"x{j + 1}";
-                X[j] = 0; // За замовчуванням 0 (якщо змінна неопорна)
-                for (int i = 0; i < rowHeaders.Length - 1; i++)
+                X[j] = 0;
+                for (int i = 0; i < rowHeaders.Length - 1; i++) // окрім Z
                 {
                     if (rowHeaders[i] == varName)
                     {
-                        X[j] = table[i, table.GetLength(1) - 1];
+                        X[j] = table[i, colsCount];
                         break;
                     }
                 }
             }
             Log("X = (" + string.Join("; ", X.Select(v => $"{v:F2}")) + ")");
         }
-        static void SolveLPPMenu()
+
+        // isMixed = false (Частина Б), isMixed = true (Частина С)
+        static void SolveLPPMenu(bool isMixed)
         {
             Console.Write("Введіть кількість змінних (n): ");
             if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
+            int originalN = n;
 
             Console.Write("Введіть кількість обмежень (m): ");
             if (!int.TryParse(Console.ReadLine(), out int m) || m <= 0) return;
@@ -452,13 +465,15 @@ namespace JordanExceptionsLab
 
             for (int j = 0; j < n; j++) colHeaders[j] = $"-x{j + 1}";
             colHeaders[n] = "1";
-            for (int i = 0; i < m; i++) rowHeaders[i] = $"y{i + 1}";
-            rowHeaders[m] = "Z";
+
+            int y_counter = 1;
 
             Log("\nПостановка задачі:");
             string zFunc = "Z = " + string.Join(" + ", Z_coeffs.Select((val, idx) => $"{val}x{idx + 1}")).Replace("+ -", "- ") + (isMax ? " -> max" : " -> min");
             Log(zFunc);
             Log("при обмеженнях:");
+
+            bool hasZeroRows = false;
 
             for (int i = 0; i < m; i++)
             {
@@ -466,8 +481,22 @@ namespace JordanExceptionsLab
                 Console.WriteLine("Введіть коефіцієнти при змінних (через пробіл):");
                 double[] a = ReadVector(n);
 
-                Console.Write("Знак (<= або >=): ");
-                string sign = Console.ReadLine().Trim();
+                string sign = "";
+                if (isMixed)
+                {
+                    Console.Write("Знак (<=, >= або =): ");
+                    sign = Console.ReadLine().Trim();
+                }
+                else
+                {
+                    Console.Write("Знак (<= або >=): ");
+                    sign = Console.ReadLine().Trim();
+                    if (sign == "=")
+                    {
+                        Console.WriteLine("Увага! Ви обрали стандартну ЗЛП (Частина Б), тому знак '=' буде замінено на '<='.");
+                        sign = "<=";
+                    }
+                }
 
                 Console.Write("Вільний член (b): ");
                 double b = double.Parse(Console.ReadLine().Replace('.', ','));
@@ -475,13 +504,30 @@ namespace JordanExceptionsLab
                 string constrStr = string.Join(" + ", a.Select((val, idx) => $"{val}x{idx + 1}")).Replace("+ -", "- ") + $" {sign} {b}";
                 Log(constrStr);
 
-                double multiplier = (sign == ">=") ? -1.0 : 1.0;
+                double multiplier = 1.0;
+                if (sign == ">=") multiplier = -1.0;
+
+                // Для змішаної задачі: коефіцієнт в одиничному стовпці для 0-рядка має бути додатним
+                if (sign == "=" && b * multiplier < 0) multiplier = -1.0;
+
                 for (int j = 0; j < n; j++) table[i, j] = a[j] * multiplier;
                 table[i, n] = b * multiplier;
+
+                if (sign == "=")
+                {
+                    rowHeaders[i] = "0";
+                    hasZeroRows = true;
+                }
+                else
+                {
+                    rowHeaders[i] = $"y{y_counter}";
+                    y_counter++;
+                }
             }
             Log($"x[j] >= 0, j=1,{n}");
 
-            // Заповнюємо рядок Z
+            // Налаштування рядка цільової функції
+            rowHeaders[m] = "Z"; 
             for (int j = 0; j < n; j++) table[m, j] = isMax ? -Z_coeffs[j] : Z_coeffs[j];
             table[m, n] = 0;
 
@@ -492,33 +538,109 @@ namespace JordanExceptionsLab
                 for (int j = 0; j < n; j++)
                 {
                     double val = -table[i, j];
-                    eq += $"({val:F2}) * X[{j + 1}] + ";
+                    eq += (val < 0 ? $"({val:F2})" : $"{val:F2}") + $" * X[{j + 1}] + ";
                 }
-                eq += $"{table[i, n]:F2} >= 0";
+                double freeTerm = table[i, n];
+                eq += (freeTerm < 0 ? $"({freeTerm:F2})" : $"{freeTerm:F2}") + " ";
+
+                if (rowHeaders[i] == "0") eq += "= 0";
+                else eq += ">= 0";
                 Log(eq);
             }
 
             Log("\nВхідна симплекс-таблиця:");
             LogMatrixLPP(table, rowHeaders, colHeaders);
 
-            // ФАЗА 1: Пошук опорного розв'язку
-            Log("\nПошук опорного розв'язку:");
+            // КРОК 1: Видалення нуль-рядків (Тільки якщо вони дійсно є)
+            if (hasZeroRows)
+            {
+                Log("Видалення нуль-рядків:");
+                while (true)
+                {
+                    int colsCount = table.GetLength(1) - 1;
+                    int r0 = -1;
+                    for (int i = 0; i < m; i++)
+                    {
+                        if (rowHeaders[i] == "0") { r0 = i; break; }
+                    }
+
+                    if (r0 == -1)
+                    {
+                        Log("Всі нуль-рядки видалено.\n");
+                        break;
+                    }
+
+                    int s = -1;
+                    for (int j = 0; j < colsCount; j++)
+                    {
+                        if (table[r0, j] > 1e-9) { s = j; break; }
+                    }
+
+                    if (s == -1)
+                    {
+                        Log("Система обмежень є суперечливою.");
+                        PromptSaveToFile();
+                        return;
+                    }
+
+                    int pivotRow = -1;
+                    double minRatio = double.MaxValue;
+                    for (int i = 0; i < m; i++)
+                    {
+                        if (table[i, s] > 1e-9)
+                        {
+                            double ratio = table[i, colsCount] / table[i, s];
+                            if (ratio >= 0 && ratio < minRatio)
+                            {
+                                minRatio = ratio;
+                                pivotRow = i;
+                            }
+                        }
+                    }
+
+                    if (pivotRow == -1) pivotRow = r0;
+
+                    Log($"Розв'язувальний рядок: {rowHeaders[pivotRow]}");
+                    Log($"Розв'язувальний стовпець: {colHeaders[s]}");
+
+                    table = DoSimplexMJEStep(table, pivotRow, s);
+                    SwapLPPHeaders(ref rowHeaders[pivotRow], ref colHeaders[s]);
+
+                    int colToDelete = -1;
+                    for (int j = 0; j < colsCount; j++)
+                    {
+                        if (colHeaders[j] == "-0") { colToDelete = j; break; }
+                    }
+
+                    if (colToDelete != -1)
+                    {
+                        table = RemoveColumn(table, colToDelete);
+                        colHeaders = RemoveHeader(colHeaders, colToDelete);
+                    }
+
+                    LogMatrixLPP(table, rowHeaders, colHeaders);
+                }
+            }
+
+            // КРОК 2: Пошук опорного розв'язку 
+            Log("Пошук опорного розв'язку:");
             while (true)
             {
-                int r = -1; // шукаємо від'ємний елемент у стовпці вільних членів
+                int colsCount = table.GetLength(1) - 1;
+                int r = -1;
                 for (int i = 0; i < m; i++)
                 {
-                    if (table[i, n] < -1e-9) { r = i; break; }
+                    if (table[i, colsCount] < -1e-9) { r = i; break; }
                 }
 
                 if (r == -1)
                 {
-                    Log("Опорний розв'язок знайдено.");
+                    Log("Знайдено опорний розв'язок:");
                     break;
                 }
 
-                int s = -1; // шукаємо від'ємний елемент у знайденому рядку
-                for (int j = 0; j < n; j++)
+                int s = -1;
+                for (int j = 0; j < colsCount; j++)
                 {
                     if (table[r, j] < -1e-9) { s = j; break; }
                 }
@@ -530,14 +652,13 @@ namespace JordanExceptionsLab
                     return;
                 }
 
-                // Шукаємо мінімальне невід'ємне відношення для вибору розв'язувального рядка
                 int pivotRow = -1;
                 double minRatio = double.MaxValue;
                 for (int i = 0; i < m; i++)
                 {
                     if (Math.Abs(table[i, s]) > 1e-9)
                     {
-                        double ratio = table[i, n] / table[i, s];
+                        double ratio = table[i, colsCount] / table[i, s];
                         if (ratio >= 0 && ratio < minRatio)
                         {
                             minRatio = ratio;
@@ -556,21 +677,22 @@ namespace JordanExceptionsLab
                 LogMatrixLPP(table, rowHeaders, colHeaders);
             }
 
-            PrintSolutionX(table, rowHeaders, n);
+            PrintSolutionX(table, rowHeaders, originalN);
 
-            // ФАЗА 2: Пошук оптимального розв'язку
+            // КРОК 3: Пошук оптимального розв'язку 
             Log("\nПошук оптимального розв'язку:");
             while (true)
             {
+                int colsCount = table.GetLength(1) - 1;
                 int s = -1;
-                for (int j = 0; j < n; j++)
+                for (int j = 0; j < colsCount; j++)
                 {
-                    if (table[m, j] < -1e-9) { s = j; break; } // шукаємо від'ємний у Z-рядку
+                    if (table[m, j] < -1e-9) { s = j; break; }
                 }
 
                 if (s == -1)
                 {
-                    Log("Оптимальний розв'язок знайдено.");
+                    Log("Знайдено оптимальний розв'язок:");
                     break;
                 }
 
@@ -578,9 +700,9 @@ namespace JordanExceptionsLab
                 double minRatio = double.MaxValue;
                 for (int i = 0; i < m; i++)
                 {
-                    if (table[i, s] > 1e-9) 
+                    if (table[i, s] > 1e-9)
                     {
-                        double ratio = table[i, n] / table[i, s];
+                        double ratio = table[i, colsCount] / table[i, s];
                         if (ratio >= 0 && ratio < minRatio)
                         {
                             minRatio = ratio;
@@ -604,8 +726,9 @@ namespace JordanExceptionsLab
                 LogMatrixLPP(table, rowHeaders, colHeaders);
             }
 
-            PrintSolutionX(table, rowHeaders, n);
-            double finalZ = isMax ? table[m, n] : -table[m, n];
+            PrintSolutionX(table, rowHeaders, originalN);
+            int finalCols = table.GetLength(1) - 1;
+            double finalZ = isMax ? table[m, finalCols] : -table[m, finalCols];
             Log($"{(isMax ? "Max" : "Min")} (Z) = {finalZ:F2}");
 
             PromptSaveToFile();
