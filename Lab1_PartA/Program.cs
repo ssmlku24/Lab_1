@@ -26,6 +26,8 @@ namespace JordanExceptionsLab
                 Console.WriteLine("4. Розв'язання ЗЛП (стандартна система обмежень: <= або >=)");
                 Console.WriteLine("--- ЧАСТИНА С ---");
                 Console.WriteLine("5. Розв'язання ЗЛП (змішана система обмежень: наявність =)");
+                Console.WriteLine("--- ЧАСТИНА D ---");
+                Console.WriteLine("6. Розв'язання ЗЦЛП (Цілочислове програмування - Метод Гоморі)");
                 Console.WriteLine("0. Вихід");
                 Console.Write("Оберіть дію: ");
 
@@ -47,6 +49,9 @@ namespace JordanExceptionsLab
                         break;
                     case "5":
                         SolveLPPMenu(isMixed: true);
+                        break;
+                    case "6":
+                        SolveGomoryLPPMenu();
                         break;
                     case "0":
                         running = false;
@@ -442,44 +447,145 @@ namespace JordanExceptionsLab
             }
             Log("X = (" + string.Join("; ", X.Select(v => $"{v:F2}")) + ")");
         }
-
-        // isMixed = false (Частина Б), isMixed = true (Частина С)
-        static void SolveLPPMenu(bool isMixed)
+        static bool FindFeasibleSolution(ref double[,] table, ref string[] rowHeaders, ref string[] colHeaders)
         {
+            Log("\nПошук опорного розв'язку:");
+            while (true)
+            {
+                int m = table.GetLength(0) - 1;
+                int colsCount = table.GetLength(1) - 1;
+                int r = -1;
+                for (int i = 0; i < m; i++)
+                {
+                    if (table[i, colsCount] < -1e-9) { r = i; break; }
+                }
+
+                if (r == -1)
+                {
+                    Log("Знайдено опорний розв'язок.");
+                    return true;
+                }
+
+                int s = -1;
+                for (int j = 0; j < colsCount; j++)
+                {
+                    if (table[r, j] < -1e-9) { s = j; break; }
+                }
+
+                if (s == -1)
+                {
+                    Log("Система обмежень є суперечливою.");
+                    return false;
+                }
+
+                int pivotRow = -1;
+                double minRatio = double.MaxValue;
+                for (int i = 0; i < m; i++)
+                {
+                    if (Math.Abs(table[i, s]) > 1e-9)
+                    {
+                        double ratio = table[i, colsCount] / table[i, s];
+                        if (ratio >= 0 && ratio < minRatio)
+                        {
+                            minRatio = ratio;
+                            pivotRow = i;
+                        }
+                    }
+                }
+
+                if (pivotRow == -1) pivotRow = r;
+
+                Log($"Розв'язувальний рядок: {rowHeaders[pivotRow]}");
+                Log($"Розв'язувальний стовпець: {colHeaders[s]}");
+
+                table = DoSimplexMJEStep(table, pivotRow, s);
+                SwapLPPHeaders(ref rowHeaders[pivotRow], ref colHeaders[s]);
+                LogMatrixLPP(table, rowHeaders, colHeaders);
+            }
+        }
+
+        static bool FindOptimalSolution(ref double[,] table, ref string[] rowHeaders, ref string[] colHeaders)
+        {
+            Log("\nПошук оптимального розв'язку:");
+            while (true)
+            {
+                int m = table.GetLength(0) - 1; 
+                int colsCount = table.GetLength(1) - 1;
+                int s = -1;
+                for (int j = 0; j < colsCount; j++)
+                {
+                    if (table[m, j] < -1e-9) { s = j; break; }
+                }
+
+                if (s == -1)
+                {
+                    Log("Знайдено оптимальний розв'язок.");
+                    return true; // Успіх
+                }
+
+                int pivotRow = -1;
+                double minRatio = double.MaxValue;
+                for (int i = 0; i < m; i++)
+                {
+                    if (table[i, s] > 1e-9)
+                    {
+                        double ratio = table[i, colsCount] / table[i, s];
+                        if (ratio >= 0 && ratio < minRatio)
+                        {
+                            minRatio = ratio;
+                            pivotRow = i;
+                        }
+                    }
+                }
+
+                if (pivotRow == -1)
+                {
+                    Log("Функція мети не обмежена зверху.");
+                    return false; // Помилка
+                }
+
+                Log($"Розв'язувальний рядок: {rowHeaders[pivotRow]}");
+                Log($"Розв'язувальний стовпець: {colHeaders[s]}");
+
+                table = DoSimplexMJEStep(table, pivotRow, s);
+                SwapLPPHeaders(ref rowHeaders[pivotRow], ref colHeaders[s]);
+                LogMatrixLPP(table, rowHeaders, colHeaders);
+            }
+        }
+        static void ReadLPPInputAndSetup(bool isMixed, out int originalN, out int m, out bool isMax, out double[,] table, out string[] rowHeaders, out string[] colHeaders)
+        {
+            originalN = 0; m = 0; isMax = true; table = null; rowHeaders = null; colHeaders = null;
+
             Console.Write("Введіть кількість змінних (n): ");
-            if (!int.TryParse(Console.ReadLine(), out int n) || n <= 0) return;
-            int originalN = n;
+            if (!int.TryParse(Console.ReadLine(), out originalN) || originalN <= 0) return;
 
             Console.Write("Введіть кількість обмежень (m): ");
-            if (!int.TryParse(Console.ReadLine(), out int m) || m <= 0) return;
+            if (!int.TryParse(Console.ReadLine(), out m) || m <= 0) return;
 
             Console.Write("Введіть тип задачі (1 - max, 2 - min): ");
-            bool isMax = Console.ReadLine().Trim() == "1";
+            isMax = Console.ReadLine().Trim() == "1";
 
             Console.WriteLine("\nВведіть коефіцієнти цільової функції Z (через пробіл):");
-            double[] Z_coeffs = ReadVector(n);
+            double[] Z_coeffs = ReadVector(originalN);
 
-            double[,] table = new double[m + 1, n + 1];
-            string[] rowHeaders = new string[m + 1];
-            string[] colHeaders = new string[n + 1];
+            table = new double[m + 1, originalN + 1];
+            rowHeaders = new string[m + 1];
+            colHeaders = new string[originalN + 1];
 
-            for (int j = 0; j < n; j++) colHeaders[j] = $"-x{j + 1}";
-            colHeaders[n] = "1";
+            for (int j = 0; j < originalN; j++) colHeaders[j] = $"-x{j + 1}";
+            colHeaders[originalN] = "1";
 
             int y_counter = 1;
-
             Log("\nПостановка задачі:");
             string zFunc = "Z = " + string.Join(" + ", Z_coeffs.Select((val, idx) => $"{val}x{idx + 1}")).Replace("+ -", "- ") + (isMax ? " -> max" : " -> min");
             Log(zFunc);
             Log("при обмеженнях:");
 
-            bool hasZeroRows = false;
-
             for (int i = 0; i < m; i++)
             {
                 Console.WriteLine($"\nОбмеження {i + 1}:");
                 Console.WriteLine("Введіть коефіцієнти при змінних (через пробіл):");
-                double[] a = ReadVector(n);
+                double[] a = ReadVector(originalN);
 
                 string sign = "";
                 if (isMixed)
@@ -493,7 +599,7 @@ namespace JordanExceptionsLab
                     sign = Console.ReadLine().Trim();
                     if (sign == "=")
                     {
-                        Console.WriteLine("Увага! Ви обрали стандартну ЗЛП (Частина Б), тому знак '=' буде замінено на '<='.");
+                        Console.WriteLine("Увага! Для стандартної ЗЛП знак '=' буде замінено на '<='.");
                         sign = "<=";
                     }
                 }
@@ -504,56 +610,50 @@ namespace JordanExceptionsLab
                 string constrStr = string.Join(" + ", a.Select((val, idx) => $"{val}x{idx + 1}")).Replace("+ -", "- ") + $" {sign} {b}";
                 Log(constrStr);
 
-                double multiplier = 1.0;
-                if (sign == ">=") multiplier = -1.0;
-
-                // Для змішаної задачі: коефіцієнт в одиничному стовпці для 0-рядка має бути додатним
+                double multiplier = sign == ">=" ? -1.0 : 1.0;
                 if (sign == "=" && b * multiplier < 0) multiplier = -1.0;
 
-                for (int j = 0; j < n; j++) table[i, j] = a[j] * multiplier;
-                table[i, n] = b * multiplier;
+                for (int j = 0; j < originalN; j++) table[i, j] = a[j] * multiplier;
+                table[i, originalN] = b * multiplier;
 
-                if (sign == "=")
-                {
-                    rowHeaders[i] = "0";
-                    hasZeroRows = true;
-                }
-                else
-                {
-                    rowHeaders[i] = $"y{y_counter}";
-                    y_counter++;
-                }
+                if (sign == "=") rowHeaders[i] = "0";
+                else { rowHeaders[i] = $"y{y_counter}"; y_counter++; }
             }
-            Log($"x[j] >= 0, j=1,{n}");
+            Log($"x[j] >= 0, j=1,{originalN}");
 
-            // Налаштування рядка цільової функції
-            rowHeaders[m] = "Z"; 
-            for (int j = 0; j < n; j++) table[m, j] = isMax ? -Z_coeffs[j] : Z_coeffs[j];
-            table[m, n] = 0;
+            rowHeaders[m] = "Z";
+            for (int j = 0; j < originalN; j++) table[m, j] = isMax ? -Z_coeffs[j] : Z_coeffs[j];
+            table[m, originalN] = 0;
 
             Log("\nПерепишемо систему обмежень:");
             for (int i = 0; i < m; i++)
             {
                 string eq = "";
-                for (int j = 0; j < n; j++)
+                for (int j = 0; j < originalN; j++)
                 {
                     double val = -table[i, j];
                     eq += (val < 0 ? $"({val:F2})" : $"{val:F2}") + $" * X[{j + 1}] + ";
                 }
-                double freeTerm = table[i, n];
+                double freeTerm = table[i, originalN];
                 eq += (freeTerm < 0 ? $"({freeTerm:F2})" : $"{freeTerm:F2}") + " ";
-
-                if (rowHeaders[i] == "0") eq += "= 0";
-                else eq += ">= 0";
+                eq += rowHeaders[i] == "0" ? "= 0" : ">= 0";
                 Log(eq);
             }
 
             Log("\nВхідна симплекс-таблиця:");
             LogMatrixLPP(table, rowHeaders, colHeaders);
+        }
+
+        // isMixed = false (Частина Б), isMixed = true (Частина С)
+        static void SolveLPPMenu(bool isMixed)
+        {
+            ReadLPPInputAndSetup(isMixed, out int originalN, out int m, out bool isMax, out double[,] table, out string[] rowHeaders, out string[] colHeaders);
+            if (table == null) return;
 
             // КРОК 1: Видалення нуль-рядків (Тільки якщо вони дійсно є)
+            bool hasZeroRows = rowHeaders.Contains("0"); // Оголошуємо змінну і перевіряємо наявність "0"
             if (hasZeroRows)
-            {
+                {
                 Log("Видалення нуль-рядків:");
                 while (true)
                 {
@@ -623,112 +723,143 @@ namespace JordanExceptionsLab
             }
 
             // КРОК 2: Пошук опорного розв'язку 
-            Log("Пошук опорного розв'язку:");
-            while (true)
+            if (!FindFeasibleSolution(ref table, ref rowHeaders, ref colHeaders))
             {
-                int colsCount = table.GetLength(1) - 1;
-                int r = -1;
-                for (int i = 0; i < m; i++)
-                {
-                    if (table[i, colsCount] < -1e-9) { r = i; break; }
-                }
-
-                if (r == -1)
-                {
-                    Log("Знайдено опорний розв'язок:");
-                    break;
-                }
-
-                int s = -1;
-                for (int j = 0; j < colsCount; j++)
-                {
-                    if (table[r, j] < -1e-9) { s = j; break; }
-                }
-
-                if (s == -1)
-                {
-                    Log("Система обмежень є суперечливою.");
-                    PromptSaveToFile();
-                    return;
-                }
-
-                int pivotRow = -1;
-                double minRatio = double.MaxValue;
-                for (int i = 0; i < m; i++)
-                {
-                    if (Math.Abs(table[i, s]) > 1e-9)
-                    {
-                        double ratio = table[i, colsCount] / table[i, s];
-                        if (ratio >= 0 && ratio < minRatio)
-                        {
-                            minRatio = ratio;
-                            pivotRow = i;
-                        }
-                    }
-                }
-
-                if (pivotRow == -1) pivotRow = r;
-
-                Log($"Розв'язувальний рядок: {rowHeaders[pivotRow]}");
-                Log($"Розв'язувальний стовпець: {colHeaders[s]}");
-
-                table = DoSimplexMJEStep(table, pivotRow, s);
-                SwapLPPHeaders(ref rowHeaders[pivotRow], ref colHeaders[s]);
-                LogMatrixLPP(table, rowHeaders, colHeaders);
+                PromptSaveToFile();
+                return;
             }
 
             PrintSolutionX(table, rowHeaders, originalN);
 
-            // КРОК 3: Пошук оптимального розв'язку 
-            Log("\nПошук оптимального розв'язку:");
-            while (true)
+            //  КРОК 3: Пошук оптимального розв'язку
+            if (!FindOptimalSolution(ref table, ref rowHeaders, ref colHeaders))
             {
-                int colsCount = table.GetLength(1) - 1;
-                int s = -1;
-                for (int j = 0; j < colsCount; j++)
-                {
-                    if (table[m, j] < -1e-9) { s = j; break; }
-                }
-
-                if (s == -1)
-                {
-                    Log("Знайдено оптимальний розв'язок:");
-                    break;
-                }
-
-                int pivotRow = -1;
-                double minRatio = double.MaxValue;
-                for (int i = 0; i < m; i++)
-                {
-                    if (table[i, s] > 1e-9)
-                    {
-                        double ratio = table[i, colsCount] / table[i, s];
-                        if (ratio >= 0 && ratio < minRatio)
-                        {
-                            minRatio = ratio;
-                            pivotRow = i;
-                        }
-                    }
-                }
-
-                if (pivotRow == -1)
-                {
-                    Log("Функція мети не обмежена зверху.");
-                    PromptSaveToFile();
-                    return;
-                }
-
-                Log($"Розв'язувальний рядок: {rowHeaders[pivotRow]}");
-                Log($"Розв'язувальний стовпець: {colHeaders[s]}");
-
-                table = DoSimplexMJEStep(table, pivotRow, s);
-                SwapLPPHeaders(ref rowHeaders[pivotRow], ref colHeaders[s]);
-                LogMatrixLPP(table, rowHeaders, colHeaders);
+                PromptSaveToFile();
+                return;
             }
 
             PrintSolutionX(table, rowHeaders, originalN);
+
             int finalCols = table.GetLength(1) - 1;
             double finalZ = isMax ? table[m, finalCols] : -table[m, finalCols];
+            Log($"{(isMax ? "Max" : "Min")} (Z) = {finalZ:F2}");
+
+            PromptSaveToFile();
+        }
+        // --- ЧАСТИНА D: ЦІЛОЧИСЛОВЕ ПРОГРАМУВАННЯ (ГОМОРІ) ---
+        static void SolveGomoryLPPMenu()
+        {
+            ReadLPPInputAndSetup(false, out int originalN, out int m, out bool isMax, out double[,] table, out string[] rowHeaders, out string[] colHeaders);
+            if (table == null) return;
+
+            bool isIntegerSolutionFound = false;
+            int sCounter = 1;
+
+            while (!isIntegerSolutionFound)
+            {
+                // Симплекс етап: Опорний -> Оптимальний
+                if (!FindFeasibleSolution(ref table, ref rowHeaders, ref colHeaders)) { PromptSaveToFile(); return; }
+
+                // Виводимо опорний розв'язок
+                PrintSolutionX(table, rowHeaders, originalN);
+
+                if (!FindOptimalSolution(ref table, ref rowHeaders, ref colHeaders)) { PromptSaveToFile(); return; }
+
+                // Виводимо оптимальний розв'язок поточної ітерації
+                PrintSolutionX(table, rowHeaders, originalN);
+
+                // Перевірка на цілочисловість і пошук максимальної дробової частини
+                double maxFrac = 0;
+                int maxFracRow = -1;
+                int colsCount = table.GetLength(1) - 1;
+
+                for (int i = 0; i < table.GetLength(0) - 1; i++) // Окрім рядка Z
+                {
+                    if (rowHeaders[i].StartsWith("x"))
+                    {
+                        double val = Math.Round(table[i, colsCount], 5);
+                        double frac = val - Math.Floor(val);
+
+                        // Якщо дробова частина суттєва (більше похибки обчислень)
+                        if (frac > 1e-4 && frac < 1 - 1e-4)
+                        {
+                            if (frac > maxFrac)
+                            {
+                                maxFrac = frac;
+                                maxFracRow = i;
+                            }
+                        }
+                    }
+                }
+
+                if (maxFracRow == -1)
+                {
+                    Log("\nУсі знайдені хі - цілі числа.");
+                    isIntegerSolutionFound = true;
+                    break;
+                }
+
+                // Генеруємо відсікання Гоморі
+                string varName = rowHeaders[maxFracRow];
+                double varVal = table[maxFracRow, colsCount];
+                Log($"\nЗнайдено розвʼязок, у якому змінні мають дробову частину, максимальна дробова частина у змінної: {varName} = {varVal:F2}");
+
+                int oldRows = table.GetLength(0);
+                int cols = table.GetLength(1);
+
+                // Створюємо розширену таблицю
+                double[,] newTable = new double[oldRows + 1, cols];
+                string[] newRowHeaders = new string[oldRows + 1];
+
+                // Копіюємо старі рядки, окрім Z
+                for (int i = 0; i < oldRows - 1; i++)
+                {
+                    newRowHeaders[i] = rowHeaders[i];
+                    for (int j = 0; j < cols; j++) newTable[i, j] = table[i, j];
+                }
+
+                // Розраховуємо новий рядок s_k
+                newRowHeaders[oldRows - 1] = $"s{sCounter}";
+                string cutStr = $"s{sCounter} = ";
+
+                for (int j = 0; j < cols - 1; j++)
+                {
+                    double a = Math.Round(table[maxFracRow, j], 5);
+                    double frac = a - Math.Floor(a);
+                    if (Math.Abs(frac) < 1e-5 || Math.Abs(frac - 1) < 1e-5) frac = 0;
+
+                    newTable[oldRows - 1, j] = -frac;
+
+                    string formattedVal = frac < 0 ? $"({frac:F2})" : $"{frac:F2}";
+                    cutStr += $"{formattedVal} * {colHeaders[j].Replace("-", "")} + ";
+                }
+
+                double b = Math.Round(table[maxFracRow, cols - 1], 5);
+                double bFrac = b - Math.Floor(b);
+                if (Math.Abs(bFrac) < 1e-5 || Math.Abs(bFrac - 1) < 1e-5) bFrac = 0;
+
+                newTable[oldRows - 1, cols - 1] = -bFrac;
+                cutStr += $"({-bFrac:F2}) >= 0";
+
+                Log("Складено додаткове обмеження:");
+                Log(cutStr);
+
+                // Повертаємо Z на останній рядок
+                newRowHeaders[oldRows] = "Z";
+                for (int j = 0; j < cols; j++) newTable[oldRows, j] = table[oldRows - 1, j];
+
+                table = newTable;
+                rowHeaders = newRowHeaders;
+
+                Log("Симплекс-таблиця з новим обмеженням:");
+                LogMatrixLPP(table, rowHeaders, colHeaders);
+
+                sCounter++;
+            }
+
+            // Вивід фінального результату
+            int finalColsCount = table.GetLength(1) - 1;
+            double finalZ = isMax ? table[table.GetLength(0) - 1, finalColsCount] : -table[table.GetLength(0) - 1, finalColsCount];
             Log($"{(isMax ? "Max" : "Min")} (Z) = {finalZ:F2}");
 
             PromptSaveToFile();
